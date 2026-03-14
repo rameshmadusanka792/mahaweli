@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mahaweli Authority - Attendance System</title>
+    <!-- Tailwind & Dexie CDNs -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+    <!-- FontAwesome & Google Fonts -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Outfit', 'sans-serif'], },
+                    colors: {
+                        mahaweli: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            900: '#064e3b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #f0fdfaf0 0%, #e0f2fe 100%);
+        }
+
+        /* Glassmorphism Styles */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 1);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Nav Item Styles */
+        .nav-item {
+            position: relative;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #64748b;
+            border-left: 4px solid transparent;
+            margin-bottom: 0.25rem;
+        }
+
+        .nav-item:hover {
+            transform: translateX(6px) scale(1.02);
+            -webkit-transform: translateX(6px) scale(1.02);
+        }
+
+        .nav-item i {
+            color: #94a3b8;
+            transition: color 0.3s ease;
+        }
+
+        /* Dashboard Colors */
+        #nav-dashboard { background-color: rgba(14, 165, 233, 0.05); }
+        #nav-dashboard:hover { background-color: rgba(14, 165, 233, 0.12); color: #0284c7; border-left-color: rgba(14, 165, 233, 0.3); }
+        #nav-dashboard:hover i { color: #0284c7; }
+        #nav-dashboard.nav-active {
+            background: linear-gradient(90deg, rgba(14, 165, 233, 0.18) 0%, transparent 100%);
+            border-left: 4px solid #0ea5e9;
+            color: #0284c7;
+            font-weight: 700;
+        }
+        #nav-dashboard.nav-active i { color: #0ea5e9; }
+
+        /* Attendance Colors */
+        #nav-attendance { background-color: rgba(16, 185, 129, 0.05); }
+        #nav-attendance:hover { background-color: rgba(16, 185, 129, 0.12); color: #059669; border-left-color: rgba(16, 185, 129, 0.3); }
+        #nav-attendance:hover i { color: #059669; }
+        #nav-attendance.nav-active {
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.18) 0%, transparent 100%);
+            border-left: 4px solid #10b981;
+            color: #059669;
+            font-weight: 700;
+        }
+        #nav-attendance.nav-active i { color: #10b981; }
+
+        /* Members Colors */
+        #nav-members { background-color: rgba(99, 102, 241, 0.05); }
+        #nav-members:hover { background-color: rgba(99, 102, 241, 0.12); color: #4f46e5; border-left-color: rgba(99, 102, 241, 0.3); }
+        #nav-members:hover i { color: #4f46e5; }
+        #nav-members.nav-active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.18) 0%, transparent 100%);
+            border-left: 4px solid #6366f1;
+            color: #4f46e5;
+            font-weight: 700;
+        }
+        #nav-members.nav-active i { color: #6366f1; }
+
+        /* OT Calculator Colors */
+        #nav-ot { background-color: rgba(249, 115, 22, 0.05); }
+        #nav-ot:hover { background-color: rgba(249, 115, 22, 0.12); color: #ea580c; border-left-color: rgba(249, 115, 22, 0.3); }
+        #nav-ot:hover i { color: #ea580c; }
+        #nav-ot.nav-active {
+            background: linear-gradient(90deg, rgba(249, 115, 22, 0.18) 0%, transparent 100%);
+            border-left: 4px solid #f97316;
+            color: #ea580c;
+            font-weight: 700;
+        }
+        #nav-ot.nav-active i { color: #f97316; }
+
+        /* Tab Logic & Animations */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: smoothFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes smoothFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+
+<body class="flex h-screen overflow-hidden text-slate-700 antialiased">
+
+    <!-- Sidebar -->
+    <aside class="w-72 glass-panel z-20 flex flex-col relative">
+        <div class="h-32 flex flex-col items-center justify-center pt-8 pb-4 relative z-10">
+            <!-- Mahaweli Logo -->
+            <div
+                class="w-16 h-16 bg-white rounded-full p-1.5 shadow-md border border-white flex items-center justify-center mb-3">
+                <img src="logo.png"
+                    onerror="this.src='https://ui-avatars.com/api/?name=MA&background=10b981&color=fff&rounded=true'"
+                    alt="Mahaweli Logo" class="object-contain h-full w-full">
+            </div>
+            <div class="text-center">
+                <h1 class="font-bold text-slate-800 text-sm tracking-wide">Mahaweli Authority</h1>
+                <p class="text-[11px] text-mahaweli-600 font-semibold tracking-widest uppercase mt-0.5">Sinhapura Branch
+                </p>
+            </div>
+        </div>
+
+        <nav class="flex-1 py-6 flex flex-col gap-1 mt-4 px-3">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard"
+                class="nav-item nav-active flex items-center px-6 py-3.5 text-sm font-medium rounded-r-2xl">
+                <i class="fa-solid fa-layer-group w-6"></i> System Dashboard
+            </button>
+            <button onclick="switchTab('attendance')" id="nav-attendance"
+                class="nav-item flex items-center px-6 py-3.5 text-sm font-medium rounded-r-2xl">
+                <i class="fa-regular fa-clock w-6"></i> Mark Attendance
+            </button>
+            <button onclick="switchTab('members')" id="nav-members"
+                class="nav-item flex items-center px-6 py-3.5 text-sm font-medium rounded-r-2xl">
+                <i class="fa-solid fa-users w-6"></i> Staff Directory
+            </button>
+            <button onclick="switchTab('ot')" id="nav-ot"
+                class="nav-item flex items-center px-6 py-3.5 text-sm font-medium rounded-r-2xl">
+                <i class="fa-solid fa-calculator w-6"></i> OT Calculator
+            </button>
+        </nav>
+
+        <div class="p-4 mt-auto">
+            <div class="bg-white/60 p-3 rounded-xl border border-white flex items-center gap-3">
+                <div
+                    class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                    A</div>
+                <div>
+                    <p class="text-xs font-bold text-slate-700">Admin User</p>
+                    <p class="text-[10px] text-mahaweli-600 font-medium">Logged in</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-y-auto relative">
+
+        <!-- Header -->
+        <header
+            class="h-24 px-10 flex items-center justify-between sticky top-0 z-10 glass-panel border-l-0 border-r-0 border-t-0 border-b border-white/50">
+            <div>
+                <h2 id="page-title" class="text-2xl font-bold text-slate-800 tracking-tight">System Dashboard</h2>
+                <p class="text-sm text-slate-500 font-medium mt-0.5" id="page-subtitle">Overview of branch attendance
+                </p>
+            </div>
+            <div class="flex items-center gap-3 bg-white/60 px-5 py-2.5 rounded-2xl border border-white shadow-sm">
+                <i class="fa-regular fa-calendar-check text-mahaweli-500"></i>
+                <div id="current-time" class="text-sm font-bold text-slate-600 tracking-wide"></div>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="p-8 md:p-10 max-w-7xl mx-auto w-full relative z-0">
+
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-content active">
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                    <div class="glass-card rounded-3xl p-6 relative overflow-hidden group">
+                        <div
+                            class="absolute -right-8 -top-8 w-32 h-32 bg-sky-100 rounded-full opacity-50 transition-transform group-hover:scale-110">
+                        </div>
+                        <div class="relative z-10 flex items-center gap-4">
+                            <div
+                                class="w-14 h-14 rounded-2xl bg-sky-50 text-sky-500 flex items-center justify-center text-2xl border border-sky-100 shadow-sm">
+                                <i class="fa-solid fa-user-group"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500 font-bold mb-0.5 uppercase tracking-wider">Total
+                                    Members</p>
+                                <h3 id="stat-members" class="text-3xl font-extrabold text-slate-800">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card rounded-3xl p-6 relative overflow-hidden group">
+                        <div
+                            class="absolute -right-8 -top-8 w-32 h-32 bg-mahaweli-100 rounded-full opacity-50 transition-transform group-hover:scale-110">
+                        </div>
+                        <div class="relative z-10 flex items-center gap-4">
+                            <div
+                                class="w-14 h-14 rounded-2xl bg-mahaweli-50 text-mahaweli-500 flex items-center justify-center text-2xl border border-mahaweli-100 shadow-sm">
+                                <i class="fa-solid fa-clipboard-check"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500 font-bold mb-0.5 uppercase tracking-wider">Today's
+                                    Check-ins</p>
+                                <h3 id="stat-attendance" class="text-3xl font-extrabold text-mahaweli-600">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card rounded-3xl p-6 relative overflow-hidden group">
+                        <div
+                            class="absolute -right-8 -top-8 w-32 h-32 bg-orange-100 rounded-full opacity-50 transition-transform group-hover:scale-110">
+                        </div>
+                        <div class="relative z-10 flex items-center gap-4">
+                            <div
+                                class="w-14 h-14 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-2xl border border-orange-100 shadow-sm">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500 font-bold mb-0.5 uppercase tracking-wider">Total
+                                    Overtime (Hrs)</p>
+                                <h3 id="stat-ot" class="text-3xl font-extrabold text-orange-500">0.0</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Section -->
+                <div class="glass-card rounded-3xl overflow-hidden shadow-lg border border-white">
+                    <div
+                        class="p-6 border-b border-white/50 flex flex-wrap justify-between items-center gap-4 bg-white/40">
+                        <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                            <i class="fa-regular fa-file-lines text-slate-400"></i> Attendance Records
+                        </h3>
+                        <div class="flex flex-wrap gap-3">
+                            <div class="relative">
+                                <i
+                                    class="fa-solid fa-filter absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-xs"></i>
+                                <select id="filter-member"
+                                    class="pl-8 pr-4 py-2.5 border border-slate-200/60 rounded-xl text-sm bg-white/80 focus:ring-2 focus:ring-mahaweli-400 focus:outline-none shadow-sm text-slate-600 font-medium"></select>
+                            </div>
+                            <input type="date" id="filter-date"
+                                class="px-4 py-2.5 border border-slate-200/60 rounded-xl text-sm bg-white/80 focus:ring-2 focus:ring-mahaweli-400 focus:outline-none shadow-sm text-slate-600 font-medium">
+                            <button onclick="loadRecords()"
+                                class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-colors">Apply</button>
+                            <button onclick="clearFilter()"
+                                class="bg-white hover:bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-bold border border-slate-200 shadow-sm transition-colors"
+                                title="Clear Filters">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="bg-white/40 text-slate-500 text-xs uppercase tracking-wider font-bold">
+                                <tr>
+                                    <th class="px-6 py-5">Date</th>
+                                    <th class="px-6 py-5">Staff Member</th>
+                                    <th class="px-6 py-5">Check-In</th>
+                                    <th class="px-6 py-5">Check-Out</th>
+                                    <th class="px-6 py-5">OT (Hrs)</th>
+                                    <th class="px-6 py-5 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="records-table-body" class="divide-y divide-white/60 bg-white/10">
+                                <!-- JS content injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Tab -->
+            <div id="tab-attendance" class="tab-content">
+                <div class="max-w-2xl mx-auto glass-card rounded-3xl p-8 shadow-xl relative overflow-hidden">
+
+                    <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-mahaweli-400 to-sky-400"></div>
+
+                    <div class="flex items-center gap-3 mb-8">
+                        <div
+                            class="w-12 h-12 bg-mahaweli-50 rounded-full flex items-center justify-center text-mahaweli-600 text-xl border border-mahaweli-100">
+                            <i class="fa-solid fa-fingerprint"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">Record Attendance</h3>
+                            <p class="text-sm text-slate-500 font-medium">Log daily check-in and check-out times</p>
+                        </div>
+                    </div>
+
+                    <form id="attendance-form" class="space-y-6">
+                        <input type="hidden" id="att-id">
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Record Date</label>
+                                <input type="date" id="att-date" required
+                                    class="w-full p-3.5 border border-slate-200 rounded-2xl bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-mahaweli-400 focus:outline-none transition-all font-medium text-slate-600">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Select Staff Member</label>
+                                <select id="att-member" required
+                                    class="w-full p-3.5 border border-slate-200 rounded-2xl bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-mahaweli-400 focus:outline-none transition-all font-medium text-slate-600"></select>
+                            </div>
+                        </div>
+
+                        <div
+                            class="p-6 bg-slate-50/50 rounded-2xl border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6 relative mt-4">
+                            <div>
+                                <label class="block text-sm font-bold mb-2 text-mahaweli-600"><i
+                                        class="fa-solid fa-arrow-right-to-bracket mr-1"></i> In Time</label>
+                                <input type="time" id="att-in" required
+                                    class="w-full p-3 border border-slate-200 rounded-xl font-bold text-lg bg-white focus:ring-2 focus:ring-mahaweli-400 focus:outline-none shadow-sm text-slate-700">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold mb-2 text-orange-500"><i
+                                        class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Out Time <span
+                                        class="font-normal text-xs text-slate-400">(Optional)</span></label>
+                                <input type="time" id="att-out"
+                                    class="w-full p-3 border border-slate-200 rounded-xl font-bold text-lg bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none shadow-sm text-slate-700">
+                            </div>
+                        </div>
+
+                        <div class="pt-4 flex gap-4">
+                            <button type="submit"
+                                class="flex-1 bg-mahaweli-600 hover:bg-mahaweli-700 text-white p-4 rounded-2xl font-bold text-lg shadow-lg shadow-mahaweli-500/30 transition-all transform hover:-translate-y-1">
+                                <i class="fa-solid fa-floppy-disk mr-2"></i> Save Record
+                            </button>
+                            <button type="reset"
+                                class="px-6 py-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-2xl font-bold shadow-sm transition-all rounded-xl">
+                                Reset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Members Tab -->
+            <div id="tab-members" class="tab-content">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                    <!-- Add Member Form -->
+                    <div class="lg:col-span-1 glass-card rounded-3xl p-6 h-fit shadow-md !bg-white/90">
+                        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                            <div
+                                class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500 border border-indigo-100">
+                                <i class="fa-solid fa-user-plus"></i>
+                            </div>
+                            <h3 class="font-bold text-lg text-slate-800">Add Staff</h3>
+                        </div>
+                        <form id="member-form" class="space-y-4">
+                            <div>
+                                <label
+                                    class="block text-xs font-bold text-slate-700 mb-1.5 ml-1 uppercase tracking-wide">Member
+                                    ID *</label>
+                                <input type="text" id="mem-id" placeholder="e.g. EMP-101" required
+                                    class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none transition-all font-medium text-slate-700">
+                            </div>
+                            <div>
+                                <label
+                                    class="block text-xs font-bold text-slate-700 mb-1.5 ml-1 uppercase tracking-wide">Full
+                                    Name *</label>
+                                <input type="text" id="mem-name" placeholder="John Doe" required
+                                    class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none transition-all font-medium text-slate-700">
+                            </div>
+                            <div>
+                                <label
+                                    class="block text-xs font-bold text-slate-700 mb-1.5 ml-1 uppercase tracking-wide">Designation
+                                    *</label>
+                                <input type="text" id="mem-designation" placeholder="Officer" required
+                                    class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none transition-all font-medium text-slate-700">
+                            </div>
+                            <div class="pt-2">
+                                <button type="submit"
+                                    class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3.5 rounded-xl font-bold text-sm shadow-md transition-all flex justify-center items-center gap-2">
+                                    Register Member <i class="fa-solid fa-check"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Member List -->
+                    <div
+                        class="lg:col-span-2 glass-card rounded-3xl shadow-md overflow-hidden flex flex-col border border-white !bg-white/80">
+                        <div
+                            class="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50 backdrop-blur-sm">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-regular fa-address-book text-slate-400"></i> Staff Directory
+                            </h3>
+                        </div>
+                        <div class="p-6 flex-1 max-h-[600px] overflow-y-auto">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="members-list">
+                                <!-- Cards injected via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- OT Calculator Tab -->
+            <div id="tab-ot" class="tab-content">
+                <div class="max-w-3xl mx-auto glass-card rounded-3xl p-8 shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 to-red-400"></div>
+
+                    <div class="flex items-center gap-3 mb-8">
+                        <div
+                            class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center text-orange-600 text-xl border border-orange-100">
+                            <i class="fa-solid fa-calculator"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">Overtime Payout Calculator</h3>
+                            <p class="text-sm text-slate-500 font-medium">Calculate OT payout for a staff member over a
+                                time period</p>
+                        </div>
+                    </div>
+
+                    <form id="ot-calc-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Select Staff Member</label>
+                                <select id="ot-member" required
+                                    class="w-full p-3.5 border border-slate-200 rounded-2xl bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none transition-all font-medium text-slate-600"></select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Hourly OT Rate (Rs.)</label>
+                                <div class="relative">
+                                    <span
+                                        class="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 font-bold">Rs.</span>
+                                    <input type="number" id="ot-rate" required min="1" placeholder="e.g. 500"
+                                        class="w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-2xl bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none transition-all font-bold text-slate-700">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            class="p-6 bg-slate-50/50 rounded-2xl border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6 relative mt-4">
+                            <div>
+                                <label class="block text-sm font-bold mb-2 text-slate-600"><i
+                                        class="fa-solid fa-calendar-day mr-1"></i> Start Date</label>
+                                <input type="date" id="ot-start-date" required
+                                    class="w-full p-3 border border-slate-200 rounded-xl font-medium bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none shadow-sm text-slate-700">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold mb-2 text-slate-600"><i
+                                        class="fa-solid fa-calendar-day mr-1"></i> End Date</label>
+                                <input type="date" id="ot-end-date" required
+                                    class="w-full p-3 border border-slate-200 rounded-xl font-medium bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none shadow-sm text-slate-700">
+                            </div>
+                        </div>
+
+                        <div class="pt-4">
+                            <button type="submit"
+                                class="w-full bg-slate-800 hover:bg-slate-900 text-white p-4 rounded-2xl font-bold text-lg shadow-lg shadow-slate-500/30 transition-all transform hover:-translate-y-1">
+                                <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Calculate Payout
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Results Section -->
+                    <div id="ot-result-section" class="mt-8 hidden">
+                        <div class="border-t border-slate-200 pt-8 pb-4">
+                            <h4 class="text-center font-bold text-slate-500 uppercase tracking-widest text-xs mb-6">
+                                Calculation Results</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div
+                                    class="bg-orange-50 border border-orange-100 rounded-2xl p-5 text-center shadow-sm">
+                                    <p class="text-xs font-bold text-orange-600 uppercase tracking-wide mb-1">Total OT
+                                        Hours</p>
+                                    <h3 id="ot-res-hours" class="text-3xl font-extrabold text-orange-500">0</h3>
+                                </div>
+                                <div
+                                    class="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 text-center shadow-sm">
+                                    <p class="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1">Total
+                                        Payout</p>
+                                    <h3 id="ot-res-amount" class="text-3xl font-extrabold text-emerald-500">Rs. 0.00
+                                    </h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Custom Script to ensure UI states match functionality -->
+    <script>
+        // Slightly override switchTab to change titles dynamically for better UX
+        const originalSwitchTab = window.switchTab;
+        window.switchTab = function (tabId) {
+
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('nav-active');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeNav) {
+                activeNav.classList.add('nav-active');
+            }
+
+            // Update titles
+            const titles = {
+                'dashboard': { t: 'System Dashboard', s: 'Overview of branch attendance' },
+                'attendance': { t: 'Mark Attendance', s: 'Record daily employee logs' },
+                'members': { t: 'Manage Staff', s: 'Directory and registration' },
+                'ot': { t: 'Overtime Calculator', s: 'Compute OT payouts for a selected time period' }
+            };
+            document.getElementById('page-title').innerText = titles[tabId].t;
+            document.getElementById('page-subtitle').innerText = titles[tabId].s;
+
+            // Load logic from app.js
+            if (tabId === 'dashboard') if (typeof loadDashboardData === 'function') loadDashboardData();
+            if (tabId === 'members') if (typeof loadMembersList === 'function') loadMembersList();
+        }
+    </script>
+    <script src="app.js"></script>
+</body>
+
+</html>
